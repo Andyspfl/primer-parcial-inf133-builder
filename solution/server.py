@@ -1,5 +1,6 @@
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import json
+from urllib.parse import urlparse, parse_qs
 
 personajes = []
 
@@ -63,13 +64,26 @@ class PersonajeService:
     def __init__(self):
         self.builder = PersonajeBuilder()
         self.desarrolladora = Desarrolladora(self.builder)
+    
+    def find_personaje_id(sefl,id):
+        for personaje in personajes:
+            if personaje["id"] == id:
+                return personaje
+        return None
+
+    def find_level_charisma_role(self, role, level, charisma):
+        list=[]
+        for personaje in personajes:
+            if personaje["role"] == role and personaje["level"] == level and personaje["charisma"] == charisma:
+                list.append(personaje)
+        return list
 
     def add_personaje(self, post_data):
         
         if not personajes:
             id = 1
         else:
-            id = max(personajes, key=lambda x: x.id).id + 1
+            id = max(personajes, key=lambda x: x["id"])["id"] + 1
         
         personaje = self.desarrolladora.create_personaje(
             id,
@@ -80,19 +94,22 @@ class PersonajeService:
             post_data["strength"],
             post_data["dexterity"]
         )
-        personajes.append(personaje)
-        return personaje
+        
+        personajes.append(personaje.__dict__)
+        print(personajes)
+        return personaje.__dict__
 
     def put_personaje(self, id, data):
         for personaje in personajes:
-            if personaje.id == id:
+            print(personaje["id"])
+            if personaje["id"] == id:
                 personaje.update(data)
                 return personaje
         return None
 
     def delete_personaje(self, id):
         for personaje in personajes:
-            if personaje.id == id:
+            if personaje["id"] == id:
                 personajes.remove(personaje)
                 return personaje
         return None
@@ -118,8 +135,30 @@ class AnimalRequestHandler(BaseHTTPRequestHandler):
         
         
     def do_GET(self):
+        parsed_path = urlparse(self.path)
+        query_params = parse_qs(parsed_path.query)
         if self.path == "/characters":
             HTTPDataHandler.handler_response(self,200, personajes)
+        elif self.path.startswith("/characters/"):
+            id = int(self.path.split('/')[-1])
+            personaje = self.personaje_service.find_personaje_id(id)
+            print(personaje)
+            if personaje:
+                HTTPDataHandler.handler_response(self, 200, personaje)
+            else:
+                HTTPDataHandler.handler_response(self, 400, {"Error":"personaje not found gg"})
+        
+        elif "role" in query_params and "level" in query_params and "charisma" in query_params:
+            role = query_params["role"][0]
+            level = query_params["level"][0]
+            charisma = query_params["charisma"][0]
+            print(role,level,charisma)
+            characters = self.personaje_service.find_level_charisma_role(role, level, charisma)
+            print(characters)
+            if characters:
+                HTTPDataHandler.handler_response(self, 200, characters)
+            else:
+                HTTPDataHandler.handler_response(self, 400, {"Error":"personajes not found dsafdaf"})
         else: HTTPDataHandler.handler_response(self, 404, {"Error":"ruta no existente"})
         
         
@@ -127,7 +166,7 @@ class AnimalRequestHandler(BaseHTTPRequestHandler):
         if self.path == "/characters":
             data = HTTPDataHandler.handler_reader(self)
             nuevo_personaje = self.personaje_service.add_personaje(data)
-            if nuevo_personaje: HTTPDataHandler.handler_response(self,201, nuevo_personaje.__dict__)
+            if nuevo_personaje: HTTPDataHandler.handler_response(self,201, nuevo_personaje)
         else: HTTPDataHandler.handler_response(self, 404, {"Error":"ruta no existente"})
         
         
@@ -136,7 +175,7 @@ class AnimalRequestHandler(BaseHTTPRequestHandler):
             id = int(self.path.split('/')[-1])
             data = HTTPDataHandler.handler_reader(self)
             personaje_modificado = self.personaje_service.put_personaje(id, data)
-            if personaje_modificado: HTTPDataHandler.handler_response(self,200,personaje_modificado.__dict__)
+            if personaje_modificado: HTTPDataHandler.handler_response(self,200,personaje_modificado)
             else: HTTPDataHandler.handler_response(self, 400, {"Error":"No existe un personaje con ese id"})
         else: HTTPDataHandler.handler_response(self, 404, {"Error":"ruta no existente"})
         
@@ -145,7 +184,7 @@ class AnimalRequestHandler(BaseHTTPRequestHandler):
         if self.path.startswith("/characters/"):
             id = int(self.path.split('/')[-1])
             delete_personaje = self.personaje_service.delete_personaje(id)
-            if delete_personaje: HTTPDataHandler.handler_response(self,200, delete_personaje.__dict__)
+            if delete_personaje: HTTPDataHandler.handler_response(self,200, delete_personaje)
             else: HTTPDataHandler.handler_response(self,400, {"Error":"No existe un personaje con ese id"})
         else: HTTPDataHandler.handler_response(self, 404, {"Error":"ruta no existente"})
         
@@ -158,3 +197,14 @@ def run(server_class=HTTPServer, handler_class=AnimalRequestHandler, port=8000):
 
 if __name__ == '__main__':
     run()
+
+
+
+# def do_GET(self):
+        # parsed_path = urlparse(self.path)
+        # query_params = parse_qs(parsed_path.query)
+        
+#         if self.path == "/patients":
+#             response_data = self.controller.read_patients()
+#             HTTPDataHandler.handle_response(self, 200, response_data)
+#         elif parsed_path.path == "/patients":
